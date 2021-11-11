@@ -1,4 +1,4 @@
-	#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 import json
 import os
@@ -7,7 +7,12 @@ import re
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import pprint
+import textstat
+import pickle
+import string
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+
 
 def parse_entries(filePath):
 	entryDict = {}
@@ -29,7 +34,7 @@ def get_text(entryDict):
 	return text
 
 def save_figure(figureName):
-	plt.savefig('{}.png'.format(figureName), dpi=200, bbox_inches='tight', pad_inches=0.2)
+	plt.savefig(f'{figureName}.png', dpi=200, bbox_inches='tight', pad_inches=0.2)
 	return
 
 def get_entry_lengths(entryDict, sortedDates):
@@ -40,7 +45,7 @@ def get_entry_lengths(entryDict, sortedDates):
 	return entryLengths
 
 def plot_entry_lengths(sortedDates, entryLengths):
-    	plt.plot(sortedDates, entryLengths)
+	plt.plot(sortedDates, entryLengths)
 	plt.xticks(rotation='vertical')
 	plt.xlabel("Entry date")
 	plt.ylabel("Entry length (characters)")
@@ -66,29 +71,74 @@ def plot_instrument_frequencies(sortedDates, instrumentFrequencyDict):
 	plt.legend()
 	return plt.plot
 
+def get_lexicon(text):
+	lexicon = textstat.lexicon_count(text, removepunct=True)
+	return lexicon
+
+def get_readability(text):
+	readability = textstat.flesch_reading_ease(text)
+	return readability
+
+def get_tokens(text, textName):
+	print(f"Getting tokens from {textName}...") 
+	tokens = nltk.sent_tokenize(text)
+	#tokens = list(filter(lambda token: token not in string.punctuation, tokens))
+	tokenFileName = f'{textName}_tokens' 
+	with open(tokenFileName, 'wb') as tokenFile:
+    		pickle.dump(tokens, tokenFile)
+	return tokenFileName
+
+def analyse_sentiment(text, textName):
+	with open (f'{textName}_tokens', 'rb') as tokenFile:
+		tokens = pickle.load(tokenFile)
+	#stopwords = nltk.corpus.stopwords.words("english")
+	#contentTokens = [token for token in tokens if token.lower() not in stopwords]
+	sid = SentimentIntensityAnalyzer()
+	negSentimentList = []
+	posSentimentList = []
+	for sentence in tokens:
+		negSentimentList.append(sid.polarity_scores(sentence)['neg'])
+		posSentimentList.append(sid.polarity_scores(sentence)['pos'])
+	return np.mean(posSentimentList) - np.mean(negSentimentList)
+
 if __name__ == "__main__":
 	filePath = os.path.abspath('takeout-20211110T024606Z-001/Keep/')
 	
 	entryDict, sortedDates = parse_entries(filePath)
+	text = get_text(entryDict)
 
-	instrumentSet = {'piano',
-			 'accordion',
-			 'guitar',
-			 'bass',
-			 'balalaika',
-			 'sanshin',
-			 'mandolin',
-			 'bodhran',
-			 'banjo',
-			 'tin whistle',
-			 'harmonica'}
+	#instrumentSet = {'piano',
+	#		 'accordion',
+	#		 'guitar',
+	#		 'bass',
+	#		 'balalaika',
+	#		 'sanshin',
+	#		 'mandolin',
+	#		 'bodhran',
+	#		 'banjo',
+	#		 'tin whistle',
+	#		 'harmonica'}
 
 	#entryLengths = get_entry_lengths(entryDict, sortedDates)
 	#plot_entry_lengths(sortedDates, entryLengths)
 	#save_figure('entry_lengths')
 
-	instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
-	plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
-	save_figure('instrument_frequencies')
+	#instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
+	#plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
+	#save_figure('instrument_frequencies')
+	
+	lexicon = get_lexicon(text)
+	print(f"lexicon = {lexicon} words")
+
+	readability = get_readability(text)
+	print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
+	
+	textName = 'text'
+	#tokenFileName = get_tokens(text, textName)
+	sentiment = analyse_sentiment(text, textName)
+	if sentiment > 0:
+		print(f"sentiment = {sentiment} (optimist)")
+	else:
+		print(f"sentiment = {sentiment} (pessimist)")
 	sys.exit(0)
 
