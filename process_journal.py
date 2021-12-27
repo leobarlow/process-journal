@@ -102,8 +102,8 @@ def analyse_sentiment(text, textName):
 	return np.mean(posSentimentList) - np.mean(negSentimentList)
 
 if __name__ == "__main__":
-	filePath = os.path.abspath('takeout-20211110T024606Z-001/Keep/')
-	
+	filePath = os.path.abspath('Takeout/Keep/')
+
 	entryDict, sortedDates = parse_entries(filePath)
 	text = get_text(entryDict)
 
@@ -126,13 +126,13 @@ if __name__ == "__main__":
 	#instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
 	#plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
 	#save_figure('instrument_frequencies')
-	
+
 	lexicon = get_lexicon(text)
 	print(f"lexicon = {lexicon} words")
 
 	readability = get_readability(text)
 	print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
-	
+
 	textName = 'text'
 	#tokenFileName = get_tokens(text, textName)
 	sentiment = analyse_sentiment(text, textName)
