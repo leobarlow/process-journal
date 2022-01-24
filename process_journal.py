@@ -12,6 +12,7 @@ import pickle
 import string
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
+import matplotlib.dates as mdates
 
 
 def parse_entries(filePath):
@@ -80,10 +81,10 @@ def get_readability(text):
 	return readability
 
 def get_tokens(text, textName):
-	print(f"Getting tokens from {textName}...") 
+	print(f"Getting tokens from {textName}...")
 	tokens = nltk.sent_tokenize(text)
 	#tokens = list(filter(lambda token: token not in string.punctuation, tokens))
-	tokenFileName = f'{textName}_tokens' 
+	tokenFileName = f'{textName}_tokens'
 	with open(tokenFileName, 'wb') as tokenFile:
     		pickle.dump(tokens, tokenFile)
 	return tokenFileName
@@ -101,31 +102,53 @@ def analyse_sentiment(text, textName):
 		posSentimentList.append(sid.polarity_scores(sentence)['pos'])
 	return np.mean(posSentimentList) - np.mean(negSentimentList)
 
+def get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates):
+	tinnitusMentionList = []
+	entryMentionBool = False
+	for date in sortedDates:
+		for keyword in tinnitusKeywords:
+			entryText = '\n'.join(entryDict[date])
+			if sum(1 for _ in re.finditer(r'\b%s\b' % re.escape(keyword), entryText)):
+				entryMentionBool = True
+		tinnitusMentionList.append(entryMentionBool)
+		entryMentionBool = False
+	return tinnitusMentionList
+
+def plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates):
+	tinnitusMentionList = [float('nan') if x==False else x for x in tinnitusMentionList]
+	plt.scatter(sortedDates, tinnitusMentionList, marker='|')
+	plt.xticks(rotation='vertical')
+	plt.yticks([])
+	plt.xlabel("Entry date")
+	plt.ylabel("Tinnitus mentions")
+	plt.text(mdates.date2num(sortedDates[10]), 1.045, f"Keywords {tinnitusKeywords}", bbox=dict(alpha=0.5))
+	return plt.plot
+
 if __name__ == "__main__":
 	filePath = os.path.abspath('Takeout/Keep/')
 
 	entryDict, sortedDates = parse_entries(filePath)
 	text = get_text(entryDict)
 
-	#instrumentSet = {'piano',
-	#		 'accordion',
-	#		 'guitar',
-	#		 'bass',
-	#		 'balalaika',
-	#		 'sanshin',
-	#		 'mandolin',
-	#		 'bodhran',
-	#		 'banjo',
-	#		 'tin whistle',
-	#		 'harmonica'}
+	instrumentSet = {'piano',
+			 'accordion',
+			 'guitar',
+			 'bass',
+			 'balalaika',
+			 'sanshin',
+			 'mandolin',
+			 'bodhran',
+			 'banjo',
+			 'tin whistle',
+			 'harmonica'}
 
-	#entryLengths = get_entry_lengths(entryDict, sortedDates)
-	#plot_entry_lengths(sortedDates, entryLengths)
-	#save_figure('entry_lengths')
+	entryLengths = get_entry_lengths(entryDict, sortedDates)
+	plot_entry_lengths(sortedDates, entryLengths)
+	save_figure('entry_lengths')
 
-	#instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
-	#plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
-	#save_figure('instrument_frequencies')
+	instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
+	plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
+	save_figure('instrument_frequencies')
 
 	lexicon = get_lexicon(text)
 	print(f"lexicon = {lexicon} words")
@@ -140,5 +163,15 @@ if __name__ == "__main__":
 		print(f"sentiment = {sentiment} (optimist)")
 	else:
 		print(f"sentiment = {sentiment} (pessimist)")
+
+	tinnitusKeywords = {'ears',
+			 'tinnitus',
+			 'ringing',
+			 'ear'}
+
+	tinnitusMentionList = get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates)
+	plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates)
+	save_figure('tinnitus mentions')
+
 	sys.exit(0)
 
