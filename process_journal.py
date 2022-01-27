@@ -13,7 +13,7 @@ import string
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 import matplotlib.dates as mdates
-
+from nltk import ngrams
 
 def parse_entries(filePath):
 	entryDict = {}
@@ -36,6 +36,7 @@ def get_text(entryDict):
 
 def save_figure(figureName):
 	plt.savefig(f'{figureName}.png', dpi=200, bbox_inches='tight', pad_inches=0.2)
+	plt.cla()
 	return
 
 def get_entry_lengths(entryDict, sortedDates):
