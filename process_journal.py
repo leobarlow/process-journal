@@ -14,6 +14,7 @@ import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 import matplotlib.dates as mdates
 from nltk import ngrams
+from wordcloud import WordCloud
 
 def parse_entries(filePath):
 	entryDict = {}
@@ -81,20 +82,23 @@ def get_readability(text):
 	readability = textstat.flesch_reading_ease(text)
 	return readability
 
-def get_tokens(text, textName):
+def get_tokens(text, textName, level='word'):
 	print(f"Getting tokens from {textName}...")
-	tokens = nltk.sent_tokenize(text)
-	#tokens = list(filter(lambda token: token not in string.punctuation, tokens))
-	tokenFileName = f'{textName}_tokens'
+	if level == 'sent':
+		tokens = nltk.sent_tokenize(text)
+	else:
+		tokens = nltk.word_tokenize(text)
+	tokens = list(filter(lambda token: token not in string.punctuation, tokens))
+	stopwords = nltk.corpus.stopwords.words("english")
+	contentTokens = [token for token in tokens if token.lower() not in stopwords]
+	tokenFileName = f'{textName}_{level}_tokens'
 	with open(tokenFileName, 'wb') as tokenFile:
-    		pickle.dump(tokens, tokenFile)
+    		pickle.dump(contentTokens, tokenFile)
 	return tokenFileName
 
 def analyse_sentiment(text, textName):
-	with open (f'{textName}_tokens', 'rb') as tokenFile:
+	with open (f'{textName}_sent_tokens', 'rb') as tokenFile:
 		tokens = pickle.load(tokenFile)
-	#stopwords = nltk.corpus.stopwords.words("english")
-	#contentTokens = [token for token in tokens if token.lower() not in stopwords]
 	sid = SentimentIntensityAnalyzer()
 	negSentimentList = []
 	posSentimentList = []
@@ -125,11 +129,29 @@ def plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates):
 	plt.text(mdates.date2num(sortedDates[10]), 1.045, f"Keywords {tinnitusKeywords}", bbox=dict(alpha=0.5))
 	return plt.plot
 
+def generate_wordcloud(textName):
+	with open (f'{textName}_word_tokens', 'rb') as tokenFile:
+		tokens = pickle.load(tokenFile)
+	tokens = ' '.join(tokens)+' '
+	wordcloud = WordCloud(width = 800, height = 800,
+			background_color ='white',
+			min_font_size = 10).generate(tokens)
+	return wordcloud
+
+def plot_wordcloud(wordcloud):
+	plt.figure()
+	plt.imshow(wordcloud, interpolation="bilinear")
+	plt.axis("off")
+	return plt.plot
+
 if __name__ == "__main__":
 	filePath = os.path.abspath('Takeout/Keep/')
 
 	entryDict, sortedDates = parse_entries(filePath)
 	text = get_text(entryDict)
+
+	textName = 'text'
+	tokenFileName = get_tokens(text, textName)
 
 	instrumentSet = {'piano',
 			 'accordion',
@@ -158,7 +180,7 @@ if __name__ == "__main__":
 	print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
 
 	textName = 'text'
-	#tokenFileName = get_tokens(text, textName)
+	tokenFileName = get_tokens(text, textName, level='sent')
 	sentiment = analyse_sentiment(text, textName)
 	if sentiment > 0:
 		print(f"sentiment = {sentiment} (optimist)")
@@ -173,6 +195,10 @@ if __name__ == "__main__":
 	tinnitusMentionList = get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates)
 	plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates)
 	save_figure('tinnitus mentions')
+
+	wordcloud = generate_wordcloud(textName)
+	plot_wordcloud(wordcloud)
+	save_figure('wordcloud')
 
 	sys.exit(0)
 
