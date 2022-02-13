@@ -15,13 +15,27 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 import matplotlib.dates as mdates
 from nltk import ngrams
 from wordcloud import WordCloud
+import argparse
 
-def parse_entries(filePath):
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-journalPath', dest='journalPath', action='store', type=str, required=True, help="Path for Takeout data")
+parser.add_argument('--instrumentsPath', dest='instrumentsPath', action='store', type=str, required=False, help="Path for list of instruments")
+parser.add_argument('--tinnitusKeywordsPath', dest='tinnitusKeywordsPath', action='store', type=str, required=False, help="Path for list of tinnitus keywords")
+parser.add_argument('--stopwordSupplementPath', dest='stopwordSupplementPath', action='store', type=str, required=False, help="Path for stopword supplement list")
+parser.add_argument('--lexicon', default=False, required=False, action='store_true', help="Print lexicon size")
+parser.add_argument('--readability', default=False, required=False, action='store_true', help="Print readability metric")
+parser.add_argument('--sentiment', default=False, required=False, action='store_true', help="Print mean sentence sentiment")
+parser.add_argument('--entryLengths', default=False, required=False, action='store_true', help="Plot entry lengths over time")
+parser.add_argument('--wordcloud', default=False, required=False, action='store_true', help="Generate content word wordcloud")
+
+
+def parse_entries(journalPath):
 	entryDict = {}
 	dateFormat = re.compile(r'\d\d_\d\d_\d\d\.json')
-	for file in os.listdir(filePath):
+	for file in os.listdir(journalPath):
 		if dateFormat.match(os.path.basename(file)):
-			with open(os.path.join(filePath, file), 'r') as f:
+			with open(os.path.join(journalPath, file), 'r') as f:
 				entryPointDictList = json.load(f)['listContent']
 				entryPointList = [point['text'] for point in entryPointDictList]
 				date = datetime.strptime(os.path.splitext(file)[0], '%d_%m_%y')
@@ -54,9 +68,9 @@ def plot_entry_lengths(sortedDates, entryLengths):
 	plt.ylabel("Entry length (characters)")
 	return plt.plot
 
-def get_instrument_frequencies(instrumentSet, entryDict, sortedDates):
+def get_instrument_frequencies(instruments, entryDict, sortedDates):
 	instrumentFrequencyDict = {}
-	for instrument in instrumentSet:
+	for instrument in instruments:
 		instrumentFrequencyList = []
 		for date in sortedDates:
 			entryText = '\n'.join(entryDict[date])
@@ -83,13 +97,16 @@ def get_readability(text):
 	return readability
 
 def get_tokens(text, textName, level='word'):
-	print(f"Getting tokens from {textName}...")
-	if level == 'sent':
+	print(f"Getting {level}-level tokens from {textName}...")
+	if level == 'sentence':
 		tokens = nltk.sent_tokenize(text)
 	else:
 		tokens = nltk.word_tokenize(text)
 	tokens = list(filter(lambda token: token not in string.punctuation, tokens))
 	stopwords = nltk.corpus.stopwords.words("english")
+	if args.stopwordSupplementPath:
+		with open(os.path.abspath(args.stopwordSupplementPath), 'r') as f:
+			stopwords += [line.strip() for line in f]
 	contentTokens = [token for token in tokens if token.lower() not in stopwords]
 	tokenFileName = f'{textName}_{level}_tokens'
 	with open(tokenFileName, 'wb') as tokenFile:
@@ -97,7 +114,7 @@ def get_tokens(text, textName, level='word'):
 	return tokenFileName
 
 def analyse_sentiment(text, textName):
-	with open (f'{textName}_sent_tokens', 'rb') as tokenFile:
+	with open (f'{textName}_sentence_tokens', 'rb') as tokenFile:
 		tokens = pickle.load(tokenFile)
 	sid = SentimentIntensityAnalyzer()
 	negSentimentList = []
@@ -145,60 +162,51 @@ def plot_wordcloud(wordcloud):
 	return plt.plot
 
 if __name__ == "__main__":
-	filePath = os.path.abspath('Takeout/Keep/')
+	args = parser.parse_args()
 
-	entryDict, sortedDates = parse_entries(filePath)
+	entryDict, sortedDates = parse_entries(os.path.abspath(args.journalPath))
 	text = get_text(entryDict)
-
 	textName = 'text'
-	tokenFileName = get_tokens(text, textName)
 
-	instrumentSet = {'piano',
-			 'accordion',
-			 'guitar',
-			 'bass',
-			 'balalaika',
-			 'sanshin',
-			 'mandolin',
-			 'bodhran',
-			 'banjo',
-			 'tin whistle',
-			 'harmonica'}
+	if args.entryLengths:
+		entryLengths = get_entry_lengths(entryDict, sortedDates)
+		plot_entry_lengths(sortedDates, entryLengths)
+		save_figure('entry_lengths')
 
-	entryLengths = get_entry_lengths(entryDict, sortedDates)
-	plot_entry_lengths(sortedDates, entryLengths)
-	save_figure('entry_lengths')
+	if args.instrumentsPath:
+		with open(os.path.abspath(args.instrumentsPath), 'r') as f:
+			instruments = set([line.strip() for line in f])
+		instrumentFrequencyDict = get_instrument_frequencies(instruments, entryDict, sortedDates)
+		plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
+		save_figure('instrument_frequencies')
 
-	instrumentFrequencyDict = get_instrument_frequencies(instrumentSet, entryDict, sortedDates)
-	plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
-	save_figure('instrument_frequencies')
+	if args.lexicon:
+		lexicon = get_lexicon(text)
+		print(f"lexicon = {lexicon} words")
 
-	lexicon = get_lexicon(text)
-	print(f"lexicon = {lexicon} words")
+	if args.readability:
+		readability = get_readability(text)
+		print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
 
-	readability = get_readability(text)
-	print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
+	if args.sentiment:
+		tokenFileName = get_tokens(text, textName, level='sentence')
+		sentiment = analyse_sentiment(text, textName)
+		if sentiment > 0:
+			print(f"sentiment = {sentiment} (optimist)")
+		else:
+			print(f"sentiment = {sentiment} (pessimist)")
 
-	textName = 'text'
-	tokenFileName = get_tokens(text, textName, level='sent')
-	sentiment = analyse_sentiment(text, textName)
-	if sentiment > 0:
-		print(f"sentiment = {sentiment} (optimist)")
-	else:
-		print(f"sentiment = {sentiment} (pessimist)")
+	if args.tinnitusKeywordsPath:
+		with open(os.path.abspath(args.tinnitusKeywordsPath), 'r') as f:
+			tinnitusKeywords = set([line.strip() for line in f])
+		tinnitusMentionList = get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates)
+		plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates)
+		save_figure('tinnitus mentions')
 
-	tinnitusKeywords = {'ears',
-			 'tinnitus',
-			 'ringing',
-			 'ear'}
-
-	tinnitusMentionList = get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates)
-	plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates)
-	save_figure('tinnitus mentions')
-
-	wordcloud = generate_wordcloud(textName)
-	plot_wordcloud(wordcloud)
-	save_figure('wordcloud')
+	if args.wordcloud:
+		tokenFileName = get_tokens(text, textName)
+		wordcloud = generate_wordcloud(textName)
+		plot_wordcloud(wordcloud)
+		save_figure('wordcloud')
 
 	sys.exit(0)
-
