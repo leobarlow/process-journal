@@ -4,9 +4,10 @@ python process_journal.py\
     --instrumentsPath instruments.txt\
     --tinnitusKeywordsPath tinnitus_keywords.txt\
     --stopwordSupplementPath stopword_supplement.txt\
+    --timestamps\
     --lexicon\
     --readability\
     --sentiment\
     --entryLengths\
     --wordcloud\
-> metrics.log
+> tmp/metrics.log

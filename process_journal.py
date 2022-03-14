@@ -6,6 +6,7 @@ from datetime import datetime
 import re
 import sys
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import textstat
 import pickle
@@ -13,7 +14,7 @@ import string
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 import matplotlib.dates as mdates
-from nltk import ngrams
+from matplotlib.dates import DateFormatter
 from wordcloud import WordCloud
 import argparse
 
@@ -23,6 +24,7 @@ parser.add_argument('-journalPath', dest='journalPath', action='store', type=str
 parser.add_argument('--instrumentsPath', dest='instrumentsPath', action='store', type=str, required=False, help="Path for list of instruments")
 parser.add_argument('--tinnitusKeywordsPath', dest='tinnitusKeywordsPath', action='store', type=str, required=False, help="Path for list of tinnitus keywords")
 parser.add_argument('--stopwordSupplementPath', dest='stopwordSupplementPath', action='store', type=str, required=False, help="Path for stopword supplement list")
+parser.add_argument('--timestamps', default=False, required=False, action='store_true', help="Plot timestamps over time")
 parser.add_argument('--lexicon', default=False, required=False, action='store_true', help="Print lexicon size")
 parser.add_argument('--readability', default=False, required=False, action='store_true', help="Print readability metric")
 parser.add_argument('--sentiment', default=False, required=False, action='store_true', help="Print mean sentence sentiment")
@@ -30,9 +32,9 @@ parser.add_argument('--entryLengths', default=False, required=False, action='sto
 parser.add_argument('--wordcloud', default=False, required=False, action='store_true', help="Generate content word wordcloud")
 
 
-def parse_entries(journalPath):
+def parse_entries(journalPath, dateFormat):
 	entryDict = {}
-	dateFormat = re.compile(r'\d\d_\d\d_\d\d\.json')
+	timestampDict = {}
 	for file in os.listdir(journalPath):
 		if dateFormat.match(os.path.basename(file)):
 			with open(os.path.join(journalPath, file), 'r') as f:
@@ -40,17 +42,39 @@ def parse_entries(journalPath):
 				entryPointList = [point['text'] for point in entryPointDictList]
 				date = datetime.strptime(os.path.splitext(file)[0], '%d_%m_%y')
 				entryDict[date] = entryPointList
+			with open(os.path.join(journalPath, file), 'r') as f:
+				date = datetime.strptime(os.path.splitext(file)[0], '%d_%m_%y')
+				ts = datetime.utcfromtimestamp(json.load(f)['userEditedTimestampUsec']/1000000)
+				if ts.hour < 12:
+					ts = ts.replace(year=1, month=1, day=2)
+				else:
+					ts = ts.replace(year=1, month=1, day=1)
+				timestampDict[date] = ts
 	sortedDates = sorted(list(entryDict.keys()))
-	return entryDict, sortedDates
+	return entryDict, timestampDict, sortedDates
+
+def parse_timestamps(journalPath, dateFormat):
+	timestampDict = {}
+	for file in os.listdir(journalPath):
+		if dateFormat.match(os.path.basename(file)):
+			with open(os.path.join(journalPath, file), 'r') as f:
+				date = datetime.strptime(os.path.splitext(file)[0], '%d_%m_%y')
+				ts = datetime.utcfromtimestamp(json.load(f)['userEditedTimestampUsec']/1000000)
+				if ts.hour < 12:
+					ts = ts.replace(year=1, month=1, day=2)
+				else:
+					ts = ts.replace(year=1, month=1, day=1)
+				timestampDict[date] = ts
+	return timestampDict
 
 def get_text(entryDict):
 	entryPointList = entryDict.values()
-	entryList = ['\n'.join(points) for points in entryPointList]
-	text = '\n'.join(entryList)
+	entryList = [' '.join(points) for points in entryPointList]
+	text = ' '.join(entryList)
 	return text
 
 def save_figure(figureName):
-	plt.savefig(f'{figureName}.png', dpi=200, bbox_inches='tight', pad_inches=0.2)
+	plt.savefig(f'figs/{figureName}.png', dpi=200, bbox_inches='tight', pad_inches=0.2)
 	plt.cla()
 	return
 
@@ -61,11 +85,26 @@ def get_entry_lengths(entryDict, sortedDates):
 		entryLengths.append(len(entryText))
 	return entryLengths
 
+def get_timestamps(timestampDict, sortedDates):
+	timestamps = []
+	for date in sortedDates:
+		timestamps.append(timestampDict[date])
+	return timestamps
+
 def plot_entry_lengths(sortedDates, entryLengths):
 	plt.plot(sortedDates, entryLengths)
 	plt.xticks(rotation='vertical')
 	plt.xlabel("Entry date")
 	plt.ylabel("Entry length (characters)")
+	return plt.plot
+
+def plot_timestamps(sortedDates, timestamps):
+	plt.scatter(sortedDates, timestamps)
+	yformatter = mdates.DateFormatter('%H:%M')
+	plt.gcf().axes[0].yaxis.set_major_formatter(yformatter)
+	plt.xticks(rotation='vertical')
+	plt.xlabel("Entry date")
+	plt.ylabel("Timestamp")
 	return plt.plot
 
 def get_instrument_frequencies(instruments, entryDict, sortedDates):
@@ -109,12 +148,12 @@ def get_tokens(text, textName, level='word'):
 			stopwords += [line.strip() for line in f]
 	contentTokens = [token for token in tokens if token.lower() not in stopwords]
 	tokenFileName = f'{textName}_{level}_tokens'
-	with open(tokenFileName, 'wb') as tokenFile:
-    		pickle.dump(contentTokens, tokenFile)
+	with open('tmp/' + tokenFileName, 'wb') as tokenFile:
+		pickle.dump(contentTokens, tokenFile)
 	return tokenFileName
 
 def analyse_sentiment(text, textName):
-	with open (f'{textName}_sentence_tokens', 'rb') as tokenFile:
+	with open(f'tmp/{textName}_sentence_tokens', 'rb') as tokenFile:
 		tokens = pickle.load(tokenFile)
 	sid = SentimentIntensityAnalyzer()
 	negSentimentList = []
@@ -147,7 +186,7 @@ def plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates):
 	return plt.plot
 
 def generate_wordcloud(textName):
-	with open (f'{textName}_word_tokens', 'rb') as tokenFile:
+	with open (f'tmp/{textName}_word_tokens', 'rb') as tokenFile:
 		tokens = pickle.load(tokenFile)
 	tokens = ' '.join(tokens)+' '
 	wordcloud = WordCloud(width = 800, height = 800,
@@ -164,9 +203,19 @@ def plot_wordcloud(wordcloud):
 if __name__ == "__main__":
 	args = parser.parse_args()
 
-	entryDict, sortedDates = parse_entries(os.path.abspath(args.journalPath))
+	dateFormat = re.compile(r'\d\d_\d\d_\d\d\.json')
+	entryDict, timestampDict, sortedDates = parse_entries(os.path.abspath(args.journalPath), dateFormat)
 	text = get_text(entryDict)
 	textName = 'text'
+
+	if args.timestamps:
+		timestampDict = parse_timestamps(args.journalPath, dateFormat)
+		timestamps = get_timestamps(timestampDict, sortedDates)
+		plot_timestamps(sortedDates, timestamps)
+		save_figure('timestamps')
+
+	with open('tmp/' + textName + '_entries', 'wb') as entriesFile:
+		pickle.dump(list(entryDict.values()), entriesFile)
 
 	if args.entryLengths:
 		entryLengths = get_entry_lengths(entryDict, sortedDates)
@@ -201,12 +250,10 @@ if __name__ == "__main__":
 			tinnitusKeywords = set([line.strip() for line in f])
 		tinnitusMentionList = get_tinnitus_mentions(tinnitusKeywords, entryDict, sortedDates)
 		plot_tinnitus_mentions(tinnitusMentionList, tinnitusKeywords, sortedDates)
-		save_figure('tinnitus mentions')
+		save_figure('tinnitus_mentions')
 
 	if args.wordcloud:
 		tokenFileName = get_tokens(text, textName)
 		wordcloud = generate_wordcloud(textName)
 		plot_wordcloud(wordcloud)
 		save_figure('wordcloud')
-
-	sys.exit(0)
