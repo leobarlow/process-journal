@@ -8,11 +8,11 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-import textstat
 import pickle
 import string
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
+from nltk.tokenize import RegexpTokenizer
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 from wordcloud import WordCloud
@@ -26,12 +26,11 @@ parser.add_argument('--instrumentsPath', dest='instrumentsPath', action='store',
 parser.add_argument('--tinnitusKeywordsPath', dest='tinnitusKeywordsPath', action='store', type=str, required=False, help="Path for list of tinnitus keywords")
 parser.add_argument('--stopwordSupplementPath', dest='stopwordSupplementPath', action='store', type=str, required=False, help="Path for stopword supplement list")
 parser.add_argument('--timestamps', default=False, required=False, action='store_true', help="Plot timestamps over time")
-parser.add_argument('--lexicon', default=False, required=False, action='store_true', help="Print lexicon size")
-parser.add_argument('--readability', default=False, required=False, action='store_true', help="Print readability metric")
 parser.add_argument('--sentiment', default=False, required=False, action='store_true', help="Print mean sentence sentiment")
 parser.add_argument('--entryLengths', default=False, required=False, action='store_true', help="Plot entry lengths over time")
 parser.add_argument('--wordcloud', default=False, required=False, action='store_true', help="Generate content word wordcloud")
 parser.add_argument('--nameFrequencies', default=False, required=False, action='store_true', help="Plot mentioned names by frequency")
+parser.add_argument('--wordcount', default=False, required=False, action='store_true', help="Print wordcount")
 
 
 def parse_entries(journalPath, dateFormat):
@@ -135,16 +134,8 @@ def plot_instrument_frequencies(sortedDates, instrumentFrequencyDict):
 	plt.legend()
 	return plt.plot
 
-def get_lexicon(text):
-	lexicon = textstat.lexicon_count(text, removepunct=True)
-	return lexicon
-
-def get_readability(text):
-	readability = textstat.flesch_reading_ease(text)
-	return readability
-
 def get_tokens(text, textName, level='word'):
-	print(f"Getting {level}-level tokens from {textName}...")
+	# print(f"Getting {level}-level tokens from {textName}...")
 	if level == 'sentence':
 		tokens = nltk.sent_tokenize(text)
 	else:
@@ -224,6 +215,11 @@ def plot_name_frequencies(nameFrequencies):
 	plt.ylabel("Frequency")
 	return plt.plot
 
+def get_wordcount(text):
+	tokenizer = RegexpTokenizer(r'\w+')
+	wordcount = len(tokenizer.tokenize(text))
+	return wordcount
+
 if __name__ == "__main__":
 	args = parser.parse_args()
 
@@ -258,14 +254,6 @@ if __name__ == "__main__":
 		plot_instrument_frequencies(sortedDates, instrumentFrequencyDict)
 		save_figure('instrument_frequencies')
 
-	if args.lexicon:
-		lexicon = get_lexicon(text)
-		print(f"lexicon = {lexicon} words")
-
-	if args.readability:
-		readability = get_readability(text)
-		print(f"Flesch–Kincaid reading ease score = {readability:.2f}")
-
 	if args.sentiment:
 		tokenFileName = get_tokens(text, textName, level='sentence')
 		sentiment = analyse_sentiment(text, textName)
@@ -286,3 +274,7 @@ if __name__ == "__main__":
 		wordcloud = generate_wordcloud(textName)
 		plot_wordcloud(wordcloud)
 		save_figure('wordcloud')
+
+	if args.wordcount:
+		wordcount = get_wordcount(text)
+		print(f"wordcount = {wordcount} words")
