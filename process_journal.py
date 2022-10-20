@@ -17,6 +17,7 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 from wordcloud import WordCloud
 import argparse
+import collections
 
 
 parser = argparse.ArgumentParser()
@@ -30,6 +31,7 @@ parser.add_argument('--readability', default=False, required=False, action='stor
 parser.add_argument('--sentiment', default=False, required=False, action='store_true', help="Print mean sentence sentiment")
 parser.add_argument('--entryLengths', default=False, required=False, action='store_true', help="Plot entry lengths over time")
 parser.add_argument('--wordcloud', default=False, required=False, action='store_true', help="Generate content word wordcloud")
+parser.add_argument('--nameFrequencies', default=False, required=False, action='store_true', help="Plot mentioned names by frequency")
 
 
 def parse_entries(journalPath, dateFormat):
@@ -91,8 +93,14 @@ def get_timestamps(timestampDict, sortedDates):
 		timestamps.append(timestampDict[date])
 	return timestamps
 
+def get_moving_average(interval, window):
+    window = np.ones(int(window))/float(window)
+    return np.convolve(interval, window, 'same')
+
 def plot_entry_lengths(sortedDates, entryLengths):
 	plt.plot(sortedDates, entryLengths)
+	y_av = get_moving_average(entryLengths, window=100)
+	plt.plot(sortedDates, y_av)
 	plt.xticks(rotation='vertical')
 	plt.xlabel("Entry date")
 	plt.ylabel("Entry length (characters)")
@@ -200,6 +208,22 @@ def plot_wordcloud(wordcloud):
 	plt.axis("off")
 	return plt.plot
 
+def get_name_frequencies(text, number):
+	names = []
+	for sent in nltk.sent_tokenize(text):
+		for chunk in nltk.ne_chunk(nltk.pos_tag(nltk.word_tokenize(sent))):
+			if hasattr(chunk, 'label'):
+				names.append(' '.join(c[0] for c in chunk.leaves()))
+	nameFrequencies = dict(collections.Counter(names).most_common(number))
+	return nameFrequencies
+
+def plot_name_frequencies(nameFrequencies):
+	plt.bar(nameFrequencies.keys(), nameFrequencies.values())
+	plt.xticks(rotation='vertical')
+	plt.xlabel("Name")
+	plt.ylabel("Frequency")
+	return plt.plot
+
 if __name__ == "__main__":
 	args = parser.parse_args()
 
@@ -207,6 +231,11 @@ if __name__ == "__main__":
 	entryDict, timestampDict, sortedDates = parse_entries(os.path.abspath(args.journalPath), dateFormat)
 	text = get_text(entryDict)
 	textName = 'text'
+
+	if args.nameFrequencies:
+		nameFrequencies = get_name_frequencies(text, number=20)
+		plot_name_frequencies(nameFrequencies)
+		save_figure('name_frequencies')
 
 	if args.timestamps:
 		timestampDict = parse_timestamps(args.journalPath, dateFormat)

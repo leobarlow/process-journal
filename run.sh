@@ -10,4 +10,5 @@ python process_journal.py\
     --sentiment\
     --entryLengths\
     --wordcloud\
+    --nameFrequencies\
 > tmp/metrics.log

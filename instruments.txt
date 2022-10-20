@@ -9,3 +9,4 @@ bodhran
 banjo
 tin whistle
 harmonica
+melodica
