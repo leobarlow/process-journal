@@ -35,7 +35,7 @@ Temporary Items
 
 requirements.txt
 Takeout/
-*tokens
-repeat.sh
 test_embeddings.py
-*entries
+generate_entries.py
+text*
+generated*
