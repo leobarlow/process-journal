@@ -277,4 +277,4 @@ if __name__ == "__main__":
 
 	if args.wordcount:
 		wordcount = get_wordcount(text)
-		print(f"wordcount = {wordcount} words")
+		print(f"wordcount = {wordcount} words ({round(wordcount/97236, 1)} Harry Potter books!)")
