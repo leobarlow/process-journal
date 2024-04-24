@@ -37,5 +37,6 @@ requirements.txt
 Takeout/
 test_embeddings.py
 generate_entries.py
+figs/name_frequencies.png
 text*
 generated*

@@ -106,7 +106,7 @@ def plot_entry_lengths(sortedDates, entryLengths):
 	return plt.plot
 
 def plot_timestamps(sortedDates, timestamps):
-	plt.scatter(sortedDates, timestamps)
+	plt.scatter(sortedDates, timestamps, s=5)
 	yformatter = mdates.DateFormatter('%H:%M')
 	plt.gcf().axes[0].yaxis.set_major_formatter(yformatter)
 	plt.xticks(rotation='vertical')
