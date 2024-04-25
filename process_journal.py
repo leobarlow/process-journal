@@ -2,7 +2,7 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import re
 import sys
 import matplotlib.pyplot as plt
@@ -31,6 +31,7 @@ parser.add_argument('--entryLengths', default=False, required=False, action='sto
 parser.add_argument('--wordcloud', default=False, required=False, action='store_true', help="Generate content word wordcloud")
 parser.add_argument('--nameFrequencies', default=False, required=False, action='store_true', help="Plot mentioned names by frequency")
 parser.add_argument('--wordcount', default=False, required=False, action='store_true', help="Print wordcount")
+parser.add_argument('--entryDates', default=False, required=False, action='store_true', help="Print number of entries and missed dates")
 
 
 def parse_entries(journalPath, dateFormat):
@@ -220,6 +221,12 @@ def get_wordcount(text):
 	wordcount = len(tokenizer.tokenize(text))
 	return wordcount
 
+def count_entry_dates(sortedDates):
+	from datetime import date, timedelta
+	dateSet = set(sortedDates[0] + timedelta(x) for x in range((sortedDates[-1] - sortedDates[0]).days))
+	missingDates = sorted(dateSet - set(sortedDates))
+	return len(sortedDates), len(missingDates)
+
 if __name__ == "__main__":
 	args = parser.parse_args()
 
@@ -278,3 +285,7 @@ if __name__ == "__main__":
 	if args.wordcount:
 		wordcount = get_wordcount(text)
 		print(f"wordcount = {wordcount} words ({round(wordcount/97236, 1)} Harry Potter books!)")
+
+	if args.entryDates:
+		numEntries, numMissingDates = count_entry_dates(sortedDates)
+		print(f"{numEntries} entries, {numMissingDates} days missed")

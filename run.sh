@@ -10,4 +10,5 @@ python process_journal.py\
     --wordcloud\
     --nameFrequencies\
     --wordcount\
-> tmp/metrics.log
+    --entryDates\
+> metrics.log
